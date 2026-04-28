@@ -372,8 +372,8 @@ function NewShiftDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="in_progress">{t("comp_in_progress")}</SelectItem>
-                <SelectItem value="done">{t("comp_selesai_shift")}</SelectItem>
-                <SelectItem value="blocked">{t("comp_tahap_selesai")}</SelectItem>
+                <SelectItem value="selesai_shift">{t("comp_selesai_shift")}</SelectItem>
+                <SelectItem value="tahap_selesai">{t("comp_tahap_selesai")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
