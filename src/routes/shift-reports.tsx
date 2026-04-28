@@ -201,7 +201,7 @@ function NewShiftDialog({
     qty_reject: 0,
     reject_reason: "",
     issues: "",
-    completion: "in_progress" as "in_progress" | "done" | "blocked",
+    completion: "in_progress" as "in_progress" | "selesai_shift" | "tahap_selesai",
   });
 
   const { data: stages = [] } = useQuery({
