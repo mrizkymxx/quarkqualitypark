@@ -29,6 +29,7 @@ const NAV: NavItem[] = [
   { to: "/spk", icon: FileText, key: "nav_spk", roles: ["ppic", "manager"] },
   { to: "/workflow", icon: Workflow, key: "nav_workflow", roles: ["ppic", "manager"] },
   { to: "/tasks", icon: ClipboardList, key: "nav_tasks", roles: ["operator", "ppic"] },
+  { to: "/shift-reports", icon: ClipboardCheck, key: "nav_shift", roles: ["operator", "ppic", "manager"] },
   { to: "/settings", icon: Settings, key: "nav_settings", roles: ["ppic"] },
 ];
 
