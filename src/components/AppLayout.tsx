@@ -6,6 +6,7 @@ import {
   FileText,
   Workflow,
   ClipboardList,
+  ClipboardCheck,
   Settings,
   LogOut,
   Factory,
