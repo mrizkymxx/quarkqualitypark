@@ -71,22 +71,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return error ? { error: error.message } : {};
   };
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    const redirectUrl = typeof window !== "undefined" ? window.location.origin : undefined;
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: redirectUrl, data: { full_name: fullName } },
-    });
-    if (error) return { error: error.message };
-    // First user becomes PPIC automatically
-    if (data.user) {
-      const { count } = await supabase.from("user_roles").select("*", { count: "exact", head: true });
-      const role: AppRole = (count ?? 0) === 0 ? "ppic" : "operator";
-      await supabase.from("user_roles").insert({ user_id: data.user.id, role });
-    }
-    return {};
-  };
 
   const signOut = async () => {
     await supabase.auth.signOut();
