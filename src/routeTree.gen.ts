@@ -9,11 +9,41 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkflowRouteImport } from './routes/workflow'
+import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as SpkRouteImport } from './routes/spk'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as PurchaseOrdersRouteImport } from './routes/purchase-orders'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SalesOrdersIndexRouteImport } from './routes/sales-orders.index'
 import { Route as SalesOrdersSoIdRouteImport } from './routes/sales-orders.$soId'
 
+const WorkflowRoute = WorkflowRouteImport.update({
+  id: '/workflow',
+  path: '/workflow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksRoute = TasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SpkRoute = SpkRouteImport.update({
+  id: '/spk',
+  path: '/spk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PurchaseOrdersRoute = PurchaseOrdersRouteImport.update({
+  id: '/purchase-orders',
+  path: '/purchase-orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -38,12 +68,22 @@ const SalesOrdersSoIdRoute = SalesOrdersSoIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/purchase-orders': typeof PurchaseOrdersRoute
+  '/settings': typeof SettingsRoute
+  '/spk': typeof SpkRoute
+  '/tasks': typeof TasksRoute
+  '/workflow': typeof WorkflowRoute
   '/sales-orders/$soId': typeof SalesOrdersSoIdRoute
   '/sales-orders/': typeof SalesOrdersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/purchase-orders': typeof PurchaseOrdersRoute
+  '/settings': typeof SettingsRoute
+  '/spk': typeof SpkRoute
+  '/tasks': typeof TasksRoute
+  '/workflow': typeof WorkflowRoute
   '/sales-orders/$soId': typeof SalesOrdersSoIdRoute
   '/sales-orders': typeof SalesOrdersIndexRoute
 }
@@ -51,26 +91,99 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/purchase-orders': typeof PurchaseOrdersRoute
+  '/settings': typeof SettingsRoute
+  '/spk': typeof SpkRoute
+  '/tasks': typeof TasksRoute
+  '/workflow': typeof WorkflowRoute
   '/sales-orders/$soId': typeof SalesOrdersSoIdRoute
   '/sales-orders/': typeof SalesOrdersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/sales-orders/$soId' | '/sales-orders/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/purchase-orders'
+    | '/settings'
+    | '/spk'
+    | '/tasks'
+    | '/workflow'
+    | '/sales-orders/$soId'
+    | '/sales-orders/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/sales-orders/$soId' | '/sales-orders'
-  id: '__root__' | '/' | '/auth' | '/sales-orders/$soId' | '/sales-orders/'
+  to:
+    | '/'
+    | '/auth'
+    | '/purchase-orders'
+    | '/settings'
+    | '/spk'
+    | '/tasks'
+    | '/workflow'
+    | '/sales-orders/$soId'
+    | '/sales-orders'
+  id:
+    | '__root__'
+    | '/'
+    | '/auth'
+    | '/purchase-orders'
+    | '/settings'
+    | '/spk'
+    | '/tasks'
+    | '/workflow'
+    | '/sales-orders/$soId'
+    | '/sales-orders/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  PurchaseOrdersRoute: typeof PurchaseOrdersRoute
+  SettingsRoute: typeof SettingsRoute
+  SpkRoute: typeof SpkRoute
+  TasksRoute: typeof TasksRoute
+  WorkflowRoute: typeof WorkflowRoute
   SalesOrdersSoIdRoute: typeof SalesOrdersSoIdRoute
   SalesOrdersIndexRoute: typeof SalesOrdersIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workflow': {
+      id: '/workflow'
+      path: '/workflow'
+      fullPath: '/workflow'
+      preLoaderRoute: typeof WorkflowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks': {
+      id: '/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/spk': {
+      id: '/spk'
+      path: '/spk'
+      fullPath: '/spk'
+      preLoaderRoute: typeof SpkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/purchase-orders': {
+      id: '/purchase-orders'
+      path: '/purchase-orders'
+      fullPath: '/purchase-orders'
+      preLoaderRoute: typeof PurchaseOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -105,6 +218,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  PurchaseOrdersRoute: PurchaseOrdersRoute,
+  SettingsRoute: SettingsRoute,
+  SpkRoute: SpkRoute,
+  TasksRoute: TasksRoute,
+  WorkflowRoute: WorkflowRoute,
   SalesOrdersSoIdRoute: SalesOrdersSoIdRoute,
   SalesOrdersIndexRoute: SalesOrdersIndexRoute,
 }
