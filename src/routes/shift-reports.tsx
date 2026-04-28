@@ -298,7 +298,6 @@ function NewShiftDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pagi">{t("shift_pagi")}</SelectItem>
-                <SelectItem value="siang">{t("shift_siang")}</SelectItem>
                 <SelectItem value="malam">{t("shift_malam")}</SelectItem>
               </SelectContent>
             </Select>
