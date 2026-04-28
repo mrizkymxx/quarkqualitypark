@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkflowRouteImport } from './routes/workflow'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SpkRouteImport } from './routes/spk'
+import { Route as ShiftReportsRouteImport } from './routes/shift-reports'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PurchaseOrdersRouteImport } from './routes/purchase-orders'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -32,6 +33,11 @@ const TasksRoute = TasksRouteImport.update({
 const SpkRoute = SpkRouteImport.update({
   id: '/spk',
   path: '/spk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShiftReportsRoute = ShiftReportsRouteImport.update({
+  id: '/shift-reports',
+  path: '/shift-reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/purchase-orders': typeof PurchaseOrdersRoute
   '/settings': typeof SettingsRoute
+  '/shift-reports': typeof ShiftReportsRoute
   '/spk': typeof SpkRoute
   '/tasks': typeof TasksRoute
   '/workflow': typeof WorkflowRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/purchase-orders': typeof PurchaseOrdersRoute
   '/settings': typeof SettingsRoute
+  '/shift-reports': typeof ShiftReportsRoute
   '/spk': typeof SpkRoute
   '/tasks': typeof TasksRoute
   '/workflow': typeof WorkflowRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/purchase-orders': typeof PurchaseOrdersRoute
   '/settings': typeof SettingsRoute
+  '/shift-reports': typeof ShiftReportsRoute
   '/spk': typeof SpkRoute
   '/tasks': typeof TasksRoute
   '/workflow': typeof WorkflowRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/purchase-orders'
     | '/settings'
+    | '/shift-reports'
     | '/spk'
     | '/tasks'
     | '/workflow'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/purchase-orders'
     | '/settings'
+    | '/shift-reports'
     | '/spk'
     | '/tasks'
     | '/workflow'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/purchase-orders'
     | '/settings'
+    | '/shift-reports'
     | '/spk'
     | '/tasks'
     | '/workflow'
@@ -140,6 +152,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   PurchaseOrdersRoute: typeof PurchaseOrdersRoute
   SettingsRoute: typeof SettingsRoute
+  ShiftReportsRoute: typeof ShiftReportsRoute
   SpkRoute: typeof SpkRoute
   TasksRoute: typeof TasksRoute
   WorkflowRoute: typeof WorkflowRoute
@@ -168,6 +181,13 @@ declare module '@tanstack/react-router' {
       path: '/spk'
       fullPath: '/spk'
       preLoaderRoute: typeof SpkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shift-reports': {
+      id: '/shift-reports'
+      path: '/shift-reports'
+      fullPath: '/shift-reports'
+      preLoaderRoute: typeof ShiftReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -220,6 +240,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   PurchaseOrdersRoute: PurchaseOrdersRoute,
   SettingsRoute: SettingsRoute,
+  ShiftReportsRoute: ShiftReportsRoute,
   SpkRoute: SpkRoute,
   TasksRoute: TasksRoute,
   WorkflowRoute: WorkflowRoute,
