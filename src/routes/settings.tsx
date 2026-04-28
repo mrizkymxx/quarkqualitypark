@@ -146,50 +146,145 @@ function UsersTab() {
     toast.success("Divisi updated");
   };
 
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+    full_name: "",
+    role: "operator" as "ppic" | "operator" | "manager",
+    division_id: "none",
+  });
+  const [creating, setCreating] = useState(false);
+
+  const createAccount = async () => {
+    if (!form.email || !form.password || !form.full_name) {
+      toast.error("Email, kata sandi, dan nama wajib diisi.");
+      return;
+    }
+    setCreating(true);
+    try {
+      await adminCreateUser({
+        data: {
+          email: form.email.trim(),
+          password: form.password,
+          full_name: form.full_name.trim(),
+          role: form.role,
+          division_id: form.division_id === "none" ? null : form.division_id,
+        },
+      });
+      toast.success("Akun dibuat");
+      setForm({ email: "", password: "", full_name: "", role: "operator", division_id: "none" });
+      qc.invalidateQueries({ queryKey: ["profiles-all"] });
+      qc.invalidateQueries({ queryKey: ["roles-all"] });
+    } catch (e: any) {
+      toast.error(e?.message || "Gagal membuat akun");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const deleteAccount = async (uid: string) => {
+    if (!confirm("Hapus akun ini? Tindakan tidak dapat dibatalkan.")) return;
+    try {
+      await adminDeleteUser({ data: { user_id: uid } });
+      toast.success("Akun dihapus");
+      qc.invalidateQueries({ queryKey: ["profiles-all"] });
+      qc.invalidateQueries({ queryKey: ["roles-all"] });
+    } catch (e: any) {
+      toast.error(e?.message || "Gagal menghapus akun");
+    }
+  };
+
   return (
-    <Card className="p-4">
-      <p className="text-xs text-muted-foreground mb-3">
-        Untuk membuat akun baru, minta pengguna mendaftar di halaman login. Lalu atur role & divisi di sini.
-      </p>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-muted-foreground border-b">
-              <th className="py-2 pr-3">Nama</th><th className="py-2 pr-3">Email</th><th className="py-2 pr-3">Role</th><th className="py-2">Divisi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {profiles.map((p) => {
-              const role = roles.find((r) => r.user_id === p.id)?.role ?? "operator";
-              return (
-                <tr key={p.id} className="border-b last:border-0">
-                  <td className="py-2 pr-3">{p.full_name || "—"}</td>
-                  <td className="py-2 pr-3">{p.email}</td>
-                  <td className="py-2 pr-3">
-                    <Select value={role} onValueChange={(v) => setRole(p.id, v as any)}>
-                      <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ppic">PPIC</SelectItem>
-                        <SelectItem value="operator">Operator</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </td>
-                  <td className="py-2">
-                    <Select value={p.division_id ?? "none"} onValueChange={(v) => setDiv(p.id, v)}>
-                      <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">—</SelectItem>
-                        {divs.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+    <div className="space-y-4">
+      <Card className="p-4 space-y-3">
+        <div className="font-semibold text-sm">Buat Akun Baru</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <Label>Nama Lengkap</Label>
+            <Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+          </div>
+          <div>
+            <Label>Email</Label>
+            <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          </div>
+          <div>
+            <Label>Kata Sandi (min. 6)</Label>
+            <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          </div>
+          <div>
+            <Label>Role</Label>
+            <Select value={form.role} onValueChange={(v: any) => setForm({ ...form, role: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ppic">PPIC (Admin)</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="operator">Operator</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2">
+            <Label>Divisi</Label>
+            <Select value={form.division_id} onValueChange={(v) => setForm({ ...form, division_id: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Tanpa Divisi —</SelectItem>
+                {divs.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <Button onClick={createAccount} disabled={creating}>
+          <Plus className="h-4 w-4 mr-1" /> {creating ? "Membuat..." : "Buat Akun"}
+        </Button>
+      </Card>
+
+      <Card className="p-4">
+        <div className="font-semibold text-sm mb-3">Daftar Pengguna</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted-foreground border-b">
+                <th className="py-2 pr-3">Nama</th><th className="py-2 pr-3">Email</th><th className="py-2 pr-3">Role</th><th className="py-2 pr-3">Divisi</th><th className="py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {profiles.map((p) => {
+                const role = roles.find((r) => r.user_id === p.id)?.role ?? "operator";
+                return (
+                  <tr key={p.id} className="border-b last:border-0">
+                    <td className="py-2 pr-3">{p.full_name || "—"}</td>
+                    <td className="py-2 pr-3">{p.email}</td>
+                    <td className="py-2 pr-3">
+                      <Select value={role} onValueChange={(v) => setRole(p.id, v as any)}>
+                        <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ppic">PPIC</SelectItem>
+                          <SelectItem value="operator">Operator</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <Select value={p.division_id ?? "none"} onValueChange={(v) => setDiv(p.id, v)}>
+                        <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">—</SelectItem>
+                          {divs.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="py-2 text-right">
+                      <Button size="icon" variant="ghost" onClick={() => deleteAccount(p.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
   );
 }
