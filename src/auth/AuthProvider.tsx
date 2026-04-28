@@ -92,7 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isOperator: roles.includes("operator"),
         isManager: roles.includes("manager"),
         signIn,
-        signUp,
         signOut,
         refreshProfile,
       }}
