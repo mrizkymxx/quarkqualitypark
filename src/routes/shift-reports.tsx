@@ -236,14 +236,14 @@ function NewShiftDialog({
         machine_id: form.machine_id || null,
         machine_name: machine?.name || null,
         report_date: form.report_date,
-        shift: form.shift,
+        shift: form.shift as "pagi" | "malam",
         operator_user_id: operatorId,
         operator_name: operatorName,
         qty_processed: Number(form.qty_processed) || 0,
         qty_reject: Number(form.qty_reject) || 0,
         reject_reason: form.reject_reason || null,
         issues: form.issues || null,
-        completion: form.completion,
+        completion: form.completion as "in_progress" | "selesai_shift" | "tahap_selesai",
       });
       if (error) throw error;
     },
