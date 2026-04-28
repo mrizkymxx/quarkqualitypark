@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SalesOrdersIndexRouteImport } from './routes/sales-orders.index'
+import { Route as SalesOrdersSoIdRouteImport } from './routes/sales-orders.$soId'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -22,31 +24,49 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SalesOrdersIndexRoute = SalesOrdersIndexRouteImport.update({
+  id: '/sales-orders/',
+  path: '/sales-orders/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SalesOrdersSoIdRoute = SalesOrdersSoIdRouteImport.update({
+  id: '/sales-orders/$soId',
+  path: '/sales-orders/$soId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/sales-orders/$soId': typeof SalesOrdersSoIdRoute
+  '/sales-orders/': typeof SalesOrdersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/sales-orders/$soId': typeof SalesOrdersSoIdRoute
+  '/sales-orders': typeof SalesOrdersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/sales-orders/$soId': typeof SalesOrdersSoIdRoute
+  '/sales-orders/': typeof SalesOrdersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth'
+  fullPaths: '/' | '/auth' | '/sales-orders/$soId' | '/sales-orders/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth'
-  id: '__root__' | '/' | '/auth'
+  to: '/' | '/auth' | '/sales-orders/$soId' | '/sales-orders'
+  id: '__root__' | '/' | '/auth' | '/sales-orders/$soId' | '/sales-orders/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  SalesOrdersSoIdRoute: typeof SalesOrdersSoIdRoute
+  SalesOrdersIndexRoute: typeof SalesOrdersIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,13 +85,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sales-orders/': {
+      id: '/sales-orders/'
+      path: '/sales-orders'
+      fullPath: '/sales-orders/'
+      preLoaderRoute: typeof SalesOrdersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sales-orders/$soId': {
+      id: '/sales-orders/$soId'
+      path: '/sales-orders/$soId'
+      fullPath: '/sales-orders/$soId'
+      preLoaderRoute: typeof SalesOrdersSoIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  SalesOrdersSoIdRoute: SalesOrdersSoIdRoute,
+  SalesOrdersIndexRoute: SalesOrdersIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
