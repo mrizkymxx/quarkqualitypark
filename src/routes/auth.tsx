@@ -16,12 +16,10 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const { t } = useI18n();
-  const { user, signIn, signUp } = useAuth();
+  const { user, signIn } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -31,17 +29,9 @@ function AuthPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const res =
-      mode === "signin"
-        ? await signIn(email, password)
-        : await signUp(email, password, fullName);
+    const res = await signIn(email, password);
     setLoading(false);
-    if (res.error) {
-      toast.error(res.error);
-    } else if (mode === "signup") {
-      toast.success("Akun dibuat! Silakan masuk.");
-      setMode("signin");
-    }
+    if (res.error) toast.error(res.error);
   };
 
   return (
@@ -64,17 +54,6 @@ function AuthPage() {
           </div>
 
           <form onSubmit={onSubmit} className="space-y-4">
-            {mode === "signup" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="fn">{t("full_name")}</Label>
-                <Input
-                  id="fn"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
-              </div>
-            )}
             <div className="space-y-1.5">
               <Label htmlFor="em">{t("email")}</Label>
               <Input
@@ -101,36 +80,12 @@ function AuthPage() {
               className="w-full bg-gradient-industrial text-primary-foreground"
               disabled={loading}
             >
-              {loading ? "..." : mode === "signin" ? t("login") : t("signup")}
+              {loading ? "..." : t("login")}
             </Button>
           </form>
 
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            {mode === "signin" ? (
-              <>
-                {t("no_account")}{" "}
-                <button
-                  className="text-primary font-medium hover:underline"
-                  onClick={() => setMode("signup")}
-                >
-                  {t("signup")}
-                </button>
-              </>
-            ) : (
-              <>
-                {t("have_account")}{" "}
-                <button
-                  className="text-primary font-medium hover:underline"
-                  onClick={() => setMode("signin")}
-                >
-                  {t("login")}
-                </button>
-              </>
-            )}
-          </div>
-
           <p className="mt-6 text-[11px] text-muted-foreground text-center">
-            Pengguna pertama otomatis menjadi PPIC (admin).
+            Akun baru hanya dapat dibuat oleh PPIC (admin) di menu Pengaturan.
           </p>
         </Card>
       </div>
