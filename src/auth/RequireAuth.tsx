@@ -17,9 +17,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-muted-foreground text-sm">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background" suppressHydrationWarning>
+        <div className="text-muted-foreground text-sm" suppressHydrationWarning>Loading...</div>
       </div>
+
     );
   }
   if (!user) return null;
