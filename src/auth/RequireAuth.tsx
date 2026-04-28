@@ -9,9 +9,11 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user && pathname !== "/auth") {
-      navigate({ to: "/auth" });
+      const t = setTimeout(() => navigate({ to: "/auth" }), 0);
+      return () => clearTimeout(t);
     }
-  }, [loading, user, navigate, pathname]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, user, pathname]);
 
   if (loading) {
     return (

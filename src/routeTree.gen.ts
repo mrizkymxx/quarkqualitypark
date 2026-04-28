@@ -15,6 +15,7 @@ import { Route as SpkRouteImport } from './routes/spk'
 import { Route as ShiftReportsRouteImport } from './routes/shift-reports'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PurchaseOrdersRouteImport } from './routes/purchase-orders'
+import { Route as KalkulatorRouteImport } from './routes/kalkulator'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SalesOrdersIndexRouteImport } from './routes/sales-orders.index'
@@ -50,6 +51,11 @@ const PurchaseOrdersRoute = PurchaseOrdersRouteImport.update({
   path: '/purchase-orders',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KalkulatorRoute = KalkulatorRouteImport.update({
+  id: '/kalkulator',
+  path: '/kalkulator',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -74,6 +80,7 @@ const SalesOrdersSoIdRoute = SalesOrdersSoIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/kalkulator': typeof KalkulatorRoute
   '/purchase-orders': typeof PurchaseOrdersRoute
   '/settings': typeof SettingsRoute
   '/shift-reports': typeof ShiftReportsRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/kalkulator': typeof KalkulatorRoute
   '/purchase-orders': typeof PurchaseOrdersRoute
   '/settings': typeof SettingsRoute
   '/shift-reports': typeof ShiftReportsRoute
@@ -99,6 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/kalkulator': typeof KalkulatorRoute
   '/purchase-orders': typeof PurchaseOrdersRoute
   '/settings': typeof SettingsRoute
   '/shift-reports': typeof ShiftReportsRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/kalkulator'
     | '/purchase-orders'
     | '/settings'
     | '/shift-reports'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/kalkulator'
     | '/purchase-orders'
     | '/settings'
     | '/shift-reports'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth'
+    | '/kalkulator'
     | '/purchase-orders'
     | '/settings'
     | '/shift-reports'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  KalkulatorRoute: typeof KalkulatorRoute
   PurchaseOrdersRoute: typeof PurchaseOrdersRoute
   SettingsRoute: typeof SettingsRoute
   ShiftReportsRoute: typeof ShiftReportsRoute
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PurchaseOrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/kalkulator': {
+      id: '/kalkulator'
+      path: '/kalkulator'
+      fullPath: '/kalkulator'
+      preLoaderRoute: typeof KalkulatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -238,6 +258,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  KalkulatorRoute: KalkulatorRoute,
   PurchaseOrdersRoute: PurchaseOrdersRoute,
   SettingsRoute: SettingsRoute,
   ShiftReportsRoute: ShiftReportsRoute,
@@ -250,3 +271,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

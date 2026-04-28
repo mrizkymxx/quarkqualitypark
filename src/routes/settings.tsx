@@ -124,7 +124,9 @@ function MachinesTab() {
 }
 
 function UsersTab() {
+  const { t } = useI18n();
   const qc = useQueryClient();
+
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles-all"],
     queryFn: async () => (await supabase.from("profiles").select("*")).data ?? [],
@@ -198,18 +200,18 @@ function UsersTab() {
   return (
     <div className="space-y-4">
       <Card className="p-4 space-y-3">
-        <div className="font-semibold text-sm">Buat Akun Baru</div>
+        <div className="font-semibold text-sm">{t("create_account")}</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <Label>Nama Lengkap</Label>
+            <Label>{t("full_name")}</Label>
             <Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
           </div>
           <div>
-            <Label>Email</Label>
+            <Label>{t("email")}</Label>
             <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </div>
           <div>
-            <Label>Kata Sandi (min. 6)</Label>
+            <Label>{t("password")} (min. 6)</Label>
             <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </div>
           <div>
@@ -235,17 +237,17 @@ function UsersTab() {
           </div>
         </div>
         <Button onClick={createAccount} disabled={creating}>
-          <Plus className="h-4 w-4 mr-1" /> {creating ? "Membuat..." : "Buat Akun"}
+          <Plus className="h-4 w-4 mr-1" /> {creating ? t("loading") : t("create_account")}
         </Button>
       </Card>
 
       <Card className="p-4">
-        <div className="font-semibold text-sm mb-3">Daftar Pengguna</div>
+        <div className="font-semibold text-sm mb-3">{t("user_list")}</div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground border-b">
-                <th className="py-2 pr-3">Nama</th><th className="py-2 pr-3">Email</th><th className="py-2 pr-3">Role</th><th className="py-2 pr-3">Divisi</th><th className="py-2"></th>
+                <th className="py-2 pr-3">{t("full_name")}</th><th className="py-2 pr-3">{t("email")}</th><th className="py-2 pr-3">Role</th><th className="py-2 pr-3">{t("division")}</th><th className="py-2"></th>
               </tr>
             </thead>
             <tbody>

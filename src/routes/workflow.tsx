@@ -35,7 +35,8 @@ function Page() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">{t("nav_workflow")}</h1>
-        <p className="text-sm text-muted-foreground">Pilih SO untuk mengatur workflow produksi.</p>
+        <p className="text-sm text-muted-foreground">{t("workflow_subtitle")}</p>
+
       </div>
       {sos.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">{t("no_data")}</Card>

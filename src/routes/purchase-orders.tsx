@@ -23,7 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Package, Truck } from "lucide-react";
+import { Plus, Package, Truck, Search, Bell, AlertTriangle } from "lucide-react";
+import { useMemo } from "react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,6 +47,7 @@ function Page() {
   const qc = useQueryClient();
   const [showNew, setShowNew] = useState(false);
   const [deliveryFor, setDeliveryFor] = useState<any | null>(null);
+  const [search, setSearch] = useState("");
 
   const { data: pos = [] } = useQuery({
     queryKey: ["purchase-orders"],
@@ -71,7 +73,7 @@ function Page() {
     queryFn: async () => {
       const { data } = await supabase
         .from("sales_orders")
-        .select("id, so_number, client_name")
+        .select("id, so_number, client_name, due_date, status")
         .order("created_at", { ascending: false });
       return data ?? [];
     },
@@ -83,12 +85,31 @@ function Page() {
       (receivedMap[d.purchase_order_id] || 0) + Number(d.quantity_received);
   }
 
+  // Filtered list
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    if (!q) return pos;
+    return pos.filter((po: any) => {
+      const linkedSo = sos.find((s: any) => s.id === po.sales_order_id);
+      return (
+        po.po_number?.toLowerCase().includes(q) ||
+        po.material_type?.toLowerCase().includes(q) ||
+        po.supplier_name?.toLowerCase().includes(q) ||
+        linkedSo?.so_number?.toLowerCase().includes(q) ||
+        linkedSo?.client_name?.toLowerCase().includes(q)
+      );
+    });
+  }, [pos, sos, search]);
+
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">{t("nav_po")}</h1>
-          <p className="text-sm text-muted-foreground">{t("po_list")}</p>
+          <p className="text-sm text-muted-foreground">
+            {filtered.length} / {pos.length} {t("po_list")}
+          </p>
         </div>
         {isPPIC && (
           <Button onClick={() => setShowNew(true)}>
@@ -97,65 +118,141 @@ function Page() {
         )}
       </div>
 
-      {pos.length === 0 ? (
+      {/* Search */}
+      <Card className="p-3">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-8 h-9"
+            placeholder="Cari PO, material, SO, klien..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </Card>
+
+
+      {filtered.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
-          {t("no_data")}
+          {pos.length === 0 ? t("no_data") : t("no_results")}
+
         </Card>
       ) : (
         <div className="grid gap-3">
-          {pos.map((po: any) => {
+          {filtered.map((po: any) => {
             const received = receivedMap[po.id] || 0;
             const pct = po.ordered_quantity
               ? Math.min(100, (received / Number(po.ordered_quantity)) * 100)
               : 0;
-            const linkedSo = sos.find((s: any) => s.id === po.sales_order_id);
+            const linkedSo = sos.find((s: any) => s.id === po.sales_order_id) as any;
+
+            // Parse P and L from notes field
+            const pMatch = po.notes?.match(/P:\s*([\d.]+)\s*mm/i);
+            const lMatch = po.notes?.match(/L:\s*([\d.]+)\s*mm/i);
+            const pVal = pMatch ? pMatch[1] : null;
+            const lVal = lMatch ? lMatch[1] : null;
+
+            // Deadline berdasarkan SO due_date (bahan harus siap 5 hari sebelumnya)
+            const nowMs = new Date().setHours(0, 0, 0, 0);
+            const soDiff = linkedSo?.due_date && linkedSo.status !== "selesai" && received < Number(po.ordered_quantity)
+              ? Math.round((new Date(linkedSo.due_date).setHours(0,0,0,0) - nowMs) / 86400000)
+              : null;
+            const poUrgency = soDiff === null ? null
+              : soDiff < 0 ? "overdue"
+              : soDiff <= 5 ? "warning"
+              : null;
+
+            const statusColor =
+              received === 0
+                ? "text-destructive"
+                : received >= Number(po.ordered_quantity)
+                ? "text-success"
+                : "text-warning";
+
+
+
             return (
-              <Card key={po.id} className="p-4">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
+              <Card key={po.id} className={`p-4 ${
+                poUrgency === "overdue" ? "border-destructive/50" :
+                poUrgency === "warning" ? "border-warning/40" : ""
+              }`}>
+                {/* Mobile: stacked layout; Desktop: row layout */}
+                <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+
+                  {/* Row 1 mobile / Left desktop: ikon + info */}
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
                     <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
                       <Package className="h-5 w-5 text-primary" />
                     </div>
-                    <div className="min-w-0">
-                      <div className="font-semibold truncate">{po.po_number}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {po.supplier_name || "—"} · {po.material_type}
-                      </div>
-                      <div className="text-xs mt-1 flex flex-wrap gap-2">
-                        {po.is_stock_po ? (
-                          <Badge variant="secondary">{t("is_stock_po")}</Badge>
-                        ) : linkedSo ? (
-                          <Badge variant="outline">SO: {linkedSo.so_number}</Badge>
-                        ) : null}
-                        {po.expected_arrival && (
-                          <span className="text-muted-foreground">
-                            {t("expected_arrival")}: {formatDate(po.expected_arrival)}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm">{po.po_number}</span>
+                        {poUrgency === "overdue" && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive text-destructive-foreground">
+                            <AlertTriangle className="h-3 w-3" /> {t("alert_so_late_label")} {Math.abs(soDiff!)}h
                           </span>
+                        )}
+                        {poUrgency === "warning" && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/20 text-warning-foreground border border-warning/40">
+                            <Bell className="h-3 w-3" /> {soDiff === 0 ? t("deadline_today") : `SO ${soDiff}h ${t("deadline_days_left")}`}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-sm font-medium text-foreground/80 mt-0.5 leading-snug">
+                        {po.material_type}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {linkedSo && (
+                          <Badge variant="outline" className="text-[10px]">SO: {linkedSo.so_number}</Badge>
+                        )}
+                        {po.supplier_name && (
+                          <Badge variant="secondary" className="text-[10px]">{po.supplier_name}</Badge>
                         )}
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium tabular-nums">
-                      {received} / {Number(po.ordered_quantity)}
-                    </div>
-                    <div className="w-32 h-1.5 bg-muted rounded mt-1 overflow-hidden">
-                      <div
-                        className="h-full bg-success"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    {isPPIC && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-2"
-                        onClick={() => setDeliveryFor(po)}
-                      >
-                        <Truck className="h-3.5 w-3.5 mr-1" />
-                        {t("add_delivery")}
-                      </Button>
+
+                  {/* Row 2 mobile: P × L + penerimaan side by side */}
+                  <div className="flex items-center justify-between gap-3 sm:gap-4">
+
+                    {/* P × L bintang utama */}
+                    {(pVal || lVal) && (
+                      <div className="flex items-center gap-2 bg-muted/60 rounded-lg px-3 py-2">
+                        {pVal && (
+                          <div className="text-center">
+                            <div className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">P</div>
+                            <div className="text-xl font-bold text-primary tabular-nums leading-tight">{pVal}</div>
+                            <div className="text-[9px] text-muted-foreground">mm</div>
+                          </div>
+                        )}
+                        {pVal && lVal && <div className="text-muted-foreground text-base">×</div>}
+                        {lVal && (
+                          <div className="text-center">
+                            <div className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">L</div>
+                            <div className="text-xl font-bold text-primary tabular-nums leading-tight">{lVal}</div>
+                            <div className="text-[9px] text-muted-foreground">mm</div>
+                          </div>
+                        )}
+                      </div>
                     )}
+
+                    {/* Penerimaan + tombol */}
+                    <div className="text-right shrink-0">
+                      <div className="text-[10px] text-muted-foreground">Diterima / Pesan</div>
+                      <div className={`text-sm font-bold tabular-nums ${statusColor}`}>
+                        {received} <span className="text-muted-foreground font-normal text-xs">/ {Number(po.ordered_quantity)}</span>
+                      </div>
+                      <div className="w-24 h-1.5 bg-muted rounded mt-1 overflow-hidden">
+                        <div className="h-full bg-success transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      {isPPIC && (
+                        <Button size="sm" variant="outline" className="mt-2 h-7 text-xs" onClick={() => setDeliveryFor(po)}>
+                          <Truck className="h-3 w-3 mr-1" />
+                          Catat Terima
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </Card>

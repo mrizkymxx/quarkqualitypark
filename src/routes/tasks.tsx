@@ -84,7 +84,7 @@ function Page() {
       </div>
       {!divId ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
-          Akun Anda belum ditugaskan ke divisi. Hubungi PPIC.
+          {t("no_division_assigned")}
         </Card>
       ) : stages.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">

@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
-import { Plus, Upload, Download, Search, AlertTriangle } from "lucide-react";
+import { Plus, Upload, Download, Search, AlertTriangle, Bell } from "lucide-react";
 import * as XLSX from "xlsx";
+import { parsePlanningExcel, rowToSORecord, rowToPORecord } from "@/lib/parseExcel";
 import { RequireAuth } from "@/auth/RequireAuth";
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/auth/AuthProvider";
@@ -30,6 +31,37 @@ import {
 import { SOStatusBadge, SO_STATUSES } from "@/components/StatusBadges";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+/** Compute deadline urgency for a Sales Order */
+function getDeadlineInfo(dueDate: string | null, status: string) {
+  if (!dueDate || status === "selesai") return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+  if (diffDays < 0)  return { level: "overdue",  days: Math.abs(diffDays) } as const;
+  if (diffDays <= 3) return { level: "warning",  days: diffDays } as const;
+  return null;
+}
+
+function DeadlineBadge({ dueDate, status, t }: { dueDate: string | null; status: string; t: (k: string) => string }) {
+  const info = getDeadlineInfo(dueDate, status);
+  if (!info) return null;
+  if (info.level === "overdue")
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive text-destructive-foreground">
+        <AlertTriangle className="h-3 w-3" />
+        {t("alert_so_late_label")} {info.days}h
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/20 text-warning-foreground border border-warning/40">
+      <Bell className="h-3 w-3" />
+      {info.days === 0 ? t("deadline_today") : `${info.days} ${t("deadline_days_left")}`}
+    </span>
+  );
+}
 
 export const Route = createFileRoute("/sales-orders/")({
   component: () => (
@@ -99,29 +131,62 @@ function SalesOrdersPage() {
 
   const onImport = async (file: File) => {
     try {
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws);
-      const records = rows
-        .map((r) => ({
-          so_number: String(r["SO Number"] ?? r.so_number ?? "").trim(),
-          client_name: String(r["Client"] ?? r.client_name ?? "").trim(),
-          product_name: String(r["Product"] ?? r.product_name ?? "").trim(),
-          product_type: String(r["Type"] ?? r.product_type ?? "") || null,
-          quantity: Number(r["Quantity"] ?? r.quantity ?? 0),
-          due_date: r["Due Date"] || r.due_date || null,
-          notes: String(r["Notes"] ?? r.notes ?? "") || null,
-        }))
-        .filter((r) => r.so_number && r.client_name && r.product_name);
-      if (records.length === 0) {
-        toast.error("Tidak ada data valid (perlu kolom SO Number, Client, Product).");
+      // Use centralized parser — works with both PLANNING PRODUKSI and PLANNING KE PPIC formats
+      const rows = await parsePlanningExcel(file);
+
+      if (rows.length === 0) {
+        toast.error("Tidak ada data valid. Pastikan file menggunakan format PLANNING PRODUKSI.");
         return;
       }
-      const { error } = await supabase.from("sales_orders").insert(records);
-      if (error) throw error;
-      toast.success(`${records.length} SO diimpor.`);
+
+      // Deduplicate by spk_number (last row wins)
+      const soMap = new Map<string, ReturnType<typeof rowToSORecord>>();
+      const spkMap = new Map<string, { spk_number: string; issue_date: string }>();
+
+      for (const r of rows) {
+        if (!r.spk_number && !r.customer_name) continue;
+        const rec = rowToSORecord(r);
+        if (!rec.so_number || !rec.client_name) continue;
+        soMap.set(rec.so_number, rec);
+        if (r.spk_number && r.schedule_date) {
+          spkMap.set(r.spk_number, { spk_number: r.spk_number, issue_date: r.schedule_date });
+        }
+      }
+
+      const soRecords = Array.from(soMap.values());
+      const { data: insertedSOs, error: soError } = await supabase
+        .from("sales_orders")
+        .upsert(soRecords as any, { onConflict: "so_number" })
+        .select("id, so_number");
+      if (soError) throw soError;
+
+      // ── 2. Insert POs linked to SOs ──
+      let poCount = 0;
+      if (insertedSOs) {
+        const soIdMap = new Map(insertedSOs.map((s) => [s.so_number, s.id]));
+        const rawRowMap = new Map<string, (typeof rows)[number]>();
+        for (const r of rows) rawRowMap.set(r.spk_number, r);
+
+        const poRecords: any[] = [];
+        for (const so of insertedSOs) {
+          const raw = rawRowMap.get(so.so_number);
+          if (!raw || !raw.paper) continue;
+          poRecords.push(rowToPORecord(raw, soIdMap.get(so.so_number)!));
+        }
+
+        if (poRecords.length > 0) {
+          const { data: insertedPOs, error: poErr } = await supabase
+            .from("purchase_orders")
+            .upsert(poRecords, { onConflict: "po_number" })
+            .select("id, po_number");
+          if (!poErr && insertedPOs) poCount = insertedPOs.length;
+          else if (poErr) console.error("Gagal upsert PO:", poErr);
+        }
+      }
+
+      toast.success(`${soRecords.length} SO & ${poCount} PO diimpor.`);
       qc.invalidateQueries({ queryKey: ["sales_orders"] });
+      qc.invalidateQueries({ queryKey: ["purchase-orders"] });
     } catch (e: any) {
       toast.error(e.message ?? "Gagal impor");
     }
@@ -193,61 +258,150 @@ function SalesOrdersPage() {
           </Select>
         </div>
 
+        {/* ── Deadline warning banner ── */}
+        {(() => {
+          const urgent = sos.filter((s: any) => {
+            const info = getDeadlineInfo(s.due_date, s.status);
+            return info !== null;
+          });
+          if (urgent.length === 0) return null;
+          const overdue = urgent.filter((s: any) => getDeadlineInfo(s.due_date, s.status)?.level === "overdue");
+          const warning = urgent.filter((s: any) => getDeadlineInfo(s.due_date, s.status)?.level === "warning");
+          return (
+            <div className="mb-3 space-y-1.5">
+              {overdue.length > 0 && (
+                <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/30 text-xs">
+                  <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-destructive">⚠ {overdue.length} SO {t("alert_so_late_label")}!</div>
+                    <div className="text-muted-foreground mt-0.5">
+                      {overdue.map((s: any) => s.so_number).join(", ")}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {warning.length > 0 && (
+                <div className="flex items-start gap-2 p-3 rounded-md bg-warning/10 border border-warning/30 text-xs">
+                  <Bell className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-warning-foreground">🔔 {warning.length} SO — deadline {t("deadline_days_left")}</div>
+                    <div className="text-muted-foreground mt-0.5">
+                      {warning.map((s: any) => `${s.so_number} (${getDeadlineInfo(s.due_date, s.status)?.days}h)`).join(", ")}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {isLoading ? (
           <div className="text-center text-sm text-muted-foreground py-8">{t("loading")}</div>
         ) : filtered.length === 0 ? (
           <div className="text-center text-sm text-muted-foreground py-8">{t("no_data")}</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground border-b">
-                  <th className="py-2 pr-3">{t("so_number")}</th>
-                  <th className="py-2 pr-3">{t("client")}</th>
-                  <th className="py-2 pr-3">{t("product")}</th>
-                  <th className="py-2 pr-3 text-right">{t("quantity")}</th>
-                  <th className="py-2 pr-3">{t("due_date")}</th>
-                  <th className="py-2 pr-3">{t("status")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s) => {
-                  const late = s.status !== "selesai" && s.due_date && s.due_date < today;
-                  return (
-                    <tr
-                      key={s.id}
-                      className="border-b last:border-0 hover:bg-muted/40 cursor-pointer"
-                    >
-                      <td className="py-2 pr-3">
-                        <Link
-                          to="/sales-orders/$soId"
-                          params={{ soId: s.id }}
-                          className="font-medium text-primary hover:underline flex items-center gap-1"
-                        >
-                          {late && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
-                          {s.so_number}
-                        </Link>
-                      </td>
-                      <td className="py-2 pr-3">{s.client_name}</td>
-                      <td className="py-2 pr-3">
-                        <div>{s.product_name}</div>
-                        {s.product_type && (
-                          <div className="text-xs text-muted-foreground">{s.product_type}</div>
-                        )}
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{s.quantity}</td>
-                      <td className="py-2 pr-3 whitespace-nowrap">{formatDate(s.due_date)}</td>
-                      <td className="py-2 pr-3">
+
+          <>
+            {/* ── Mobile: kartu list ── */}
+            <div className="md:hidden space-y-2">
+              {filtered.map((s: any) => {
+                const dlInfo = getDeadlineInfo(s.due_date, s.status);
+                return (
+                  <Link
+                    key={s.id}
+                    to="/sales-orders/$soId"
+                    params={{ soId: s.id }}
+                    className="block"
+                  >
+                    <div className={`rounded-md border bg-card p-3 hover:shadow-sm transition-shadow ${
+                      dlInfo?.level === "overdue" ? "border-destructive/50 bg-destructive/5" :
+                      dlInfo?.level === "warning" ? "border-warning/40" : ""
+                    }`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-sm text-primary">{s.so_number}</span>
+                            <DeadlineBadge dueDate={s.due_date} status={s.status} t={t} />
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">{s.client_name}</div>
+                          {(s as any).customer_po_number && (
+                            <div className="text-xs text-muted-foreground">PO: {(s as any).customer_po_number}</div>
+                          )}
+                        </div>
                         <SOStatusBadge status={s.status} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                      <div className="mt-2 text-xs font-medium truncate">{s.product_name}</div>
+                      {s.product_type && (
+                        <div className="text-[11px] text-muted-foreground truncate">{s.product_type}</div>
+                      )}
+                      <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                        <span className="tabular-nums">{t("quantity")}: <span className="font-medium text-foreground">{s.quantity}</span></span>
+                        <span>{t("due_date")}: <span className="font-medium text-foreground">{formatDate(s.due_date)}</span></span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* ── Desktop: tabel ── */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-muted-foreground border-b">
+                    <th className="py-2 pr-3">{t("so_number")}</th>
+                    <th className="py-2 pr-3">{t("client")}</th>
+                    <th className="py-2 pr-3">PO Klien</th>
+                    <th className="py-2 pr-3">{t("product")}</th>
+                    <th className="py-2 pr-3 text-right">{t("quantity")}</th>
+                    <th className="py-2 pr-3">{t("due_date")}</th>
+                    <th className="py-2 pr-3">{t("status")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((s: any) => {
+                    return (
+                      <tr key={s.id} className={`border-b last:border-0 hover:bg-muted/40 cursor-pointer ${
+                        getDeadlineInfo(s.due_date, s.status)?.level === "overdue" ? "bg-destructive/5" : ""
+                      }`}>
+                        <td className="py-2 pr-3">
+                          <Link
+                            to="/sales-orders/$soId"
+                            params={{ soId: s.id }}
+                            className="font-medium text-primary hover:underline"
+                          >
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {s.so_number}
+                              <DeadlineBadge dueDate={s.due_date} status={s.status} t={t} />
+                            </div>
+                          </Link>
+                        </td>
+                        <td className="py-2 pr-3 whitespace-nowrap">{s.client_name}</td>
+                        <td className="py-2 pr-3">
+                          {(s as any).customer_po_number ? (
+                            <span className="text-xs text-muted-foreground">{(s as any).customer_po_number}</span>
+                          ) : "—"}
+                        </td>
+                        <td className="py-2 pr-3 max-w-xs">
+                          <div className="font-medium truncate">{s.product_name}</div>
+                          {s.product_type && (
+                            <div className="text-xs text-muted-foreground truncate max-w-[200px]">{s.product_type}</div>
+                          )}
+                        </td>
+                        <td className="py-2 pr-3 text-right tabular-nums">{s.quantity}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap">{formatDate(s.due_date)}</td>
+                        <td className="py-2 pr-3"><SOStatusBadge status={s.status} /></td>
+
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </Card>
+
     </div>
   );
 }

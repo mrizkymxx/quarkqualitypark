@@ -21,10 +21,19 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (user) navigate({ to: "/" });
-  }, [user, navigate]);
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      const t = setTimeout(() => navigate({ to: "/" }), 0);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,8 +43,10 @@ function AuthPage() {
     if (res.error) toast.error(res.error);
   };
 
+  if (!mounted) return null;
+
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-secondary">
+    <div suppressHydrationWarning className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-secondary">
       <header className="flex justify-between items-center px-4 md:px-8 py-4">
         <div className="flex items-center gap-2">
           <div className="h-9 w-9 rounded-md bg-gradient-industrial flex items-center justify-center">

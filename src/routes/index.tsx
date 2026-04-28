@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
+
+
 import {
   ShoppingCart,
   AlertTriangle,
@@ -10,6 +12,7 @@ import {
   Bell,
   CheckCircle2,
 } from "lucide-react";
+
 import { RequireAuth } from "@/auth/RequireAuth";
 import { AppLayout } from "@/components/AppLayout";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -32,6 +35,7 @@ export const Route = createFileRoute("/")({
 function Dashboard() {
   const { t, formatDate } = useI18n();
   const today = new Date().toISOString().slice(0, 10);
+  const [alertsOpen, setAlertsOpen] = useState(false);
 
   const { data: sos = [] } = useQuery({
     queryKey: ["dash-sos"],
@@ -76,6 +80,25 @@ function Dashboard() {
     },
   });
 
+  const { data: pos = [] } = useQuery({
+    queryKey: ["dash-pos"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("purchase_orders")
+        .select("id, po_number, expected_arrival, ordered_quantity, supplier_name, sales_order_id")
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const { data: deliveries = [] } = useQuery({
+    queryKey: ["dash-deliveries"],
+    queryFn: async () => {
+      const { data } = await supabase.from("material_deliveries").select("purchase_order_id, quantity_received");
+      return data ?? [];
+    },
+  });
+
   const stats = useMemo(() => {
     const active = sos.filter((s) => s.status !== "selesai").length;
     const late = sos.filter(
@@ -110,27 +133,46 @@ function Dashboard() {
   }, [sos]);
 
   const alerts = useMemo(() => {
-    const a: { type: string; msg: string; severity: "danger" | "warning" | "info" }[] = [];
+    const a: { type: string; msg: string; severity: "danger" | "warning" | "info"; soId?: string; toPO?: boolean }[] = [];
+    const nowMs = new Date().setHours(0, 0, 0, 0);
+
+    // SO overdue / near deadline
     sos.forEach((s) => {
-      if (s.status !== "selesai" && s.due_date && s.due_date < today) {
-        a.push({
-          type: "late",
-          msg: `${s.so_number} • ${s.client_name} terlambat`,
-          severity: "danger",
-        });
-      }
+      if (s.status === "selesai" || !s.due_date) return;
+      const diff = Math.round((new Date(s.due_date).setHours(0,0,0,0) - nowMs) / 86400000);
+      const label = diff === 0 ? t("deadline_today") : `${diff} ${t("deadline_days_left")}`;
+      if (diff < 0)
+        a.push({ type: "so-late", msg: `⚠ SO ${s.so_number} — ${t("alert_so_late_label")} ${Math.abs(diff)} ${t("deadline_days_left")}`, severity: "danger", soId: s.id });
+      else if (diff <= 3)
+        a.push({ type: "so-warn", msg: `🔔 SO ${s.so_number} — deadline ${label}`, severity: "warning", soId: s.id });
     });
+
+    // PO bahan — berdasarkan SO due_date (bahan harus siap 5 hari sebelum SO deadline)
+    const receivedMap: Record<string, number> = {};
+    for (const d of deliveries) {
+      receivedMap[(d as any).purchase_order_id] = (receivedMap[(d as any).purchase_order_id] || 0) + Number((d as any).quantity_received);
+    }
+    pos.forEach((p: any) => {
+      const received = receivedMap[p.id] || 0;
+      if (received >= Number(p.ordered_quantity)) return;
+      const linkedSo = sos.find((s) => s.id === p.sales_order_id) as any;
+      if (!linkedSo?.due_date || linkedSo.status === "selesai") return;
+      const diff = Math.round((new Date(linkedSo.due_date).setHours(0,0,0,0) - nowMs) / 86400000);
+      const label = diff === 0 ? t("deadline_today") : `${diff} ${t("deadline_days_left")}`;
+      if (diff < 0)
+        a.push({ type: "po-late", msg: `📦 ${p.po_number} — ${t("alert_material_not_ready")}! SO ${linkedSo.so_number} ${t("alert_so_late_label")} ${Math.abs(diff)}h`, severity: "danger", toPO: true });
+      else if (diff <= 5)
+        a.push({ type: "po-warn", msg: `📦 ${p.po_number} — ${t("alert_material_ready_in")} ${label} (SO: ${linkedSo.so_number})`, severity: "warning", toPO: true });
+    });
+
+    // PPIC review
     stages.forEach((s) => {
-      if (s.pending_ppic_review) {
-        a.push({
-          type: "review",
-          msg: `Tahap "${s.stage_name}" menunggu konfirmasi PPIC`,
-          severity: "warning",
-        });
-      }
+      if (s.pending_ppic_review)
+        a.push({ type: "review", msg: `"${s.stage_name}" — ${t("alert_pending_ppic")}`, severity: "info", soId: s.sales_order_id });
     });
-    return a.slice(0, 8);
-  }, [sos, stages, today]);
+    return a.slice(0, 15);
+  }, [sos, pos, deliveries, stages, t]);
+
 
   return (
     <div className="space-y-6">
@@ -140,6 +182,75 @@ function Dashboard() {
           <p className="text-sm text-muted-foreground">{formatDate(new Date())}</p>
         </div>
       </div>
+
+      {/* ── Panel Peringatan Collapsible ── */}
+      {alerts.length > 0 && (
+        <Card className={`overflow-hidden border-l-4 ${
+          alerts.some(a => a.severity === "danger") ? "border-l-destructive" : "border-l-warning"
+        }`}>
+          {/* Header bar — always visible, click to toggle */}
+          <button
+            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+            onClick={() => setAlertsOpen(o => !o)}
+          >
+            <Bell className={`h-4 w-4 shrink-0 ${
+              alerts.some(a => a.severity === "danger") ? "text-destructive" : "text-warning"
+            }`} />
+            <span className="font-semibold text-sm flex-1">{t("dash_alerts")}</span>
+            <span className="flex items-center gap-1.5">
+              {alerts.filter(a => a.severity === "danger").length > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-destructive text-destructive-foreground">
+                  <AlertTriangle className="h-2.5 w-2.5" />
+                  {alerts.filter(a => a.severity === "danger").length}
+                </span>
+              )}
+              {alerts.filter(a => a.severity === "warning").length > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-warning/20 text-warning-foreground border border-warning/40">
+                  <Bell className="h-2.5 w-2.5" />
+                  {alerts.filter(a => a.severity === "warning").length}
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground ml-1">{alertsOpen ? "▲" : "▼"}</span>
+            </span>
+          </button>
+
+          {/* Expandable list */}
+          {alertsOpen && (
+            <div className="px-4 pb-3 border-t">
+              <ul className="space-y-1.5 mt-2">
+                {alerts.map((a, i) => {
+                  const inner = (
+                    <div className={cn(
+                      "text-xs p-2.5 rounded-md flex items-start gap-2 hover:opacity-80 transition-opacity",
+                      a.severity === "danger" && "bg-destructive/10 border border-destructive/20 text-destructive",
+                      a.severity === "warning" && "bg-warning/10 border border-warning/20 text-warning-foreground",
+                      a.severity === "info" && "bg-muted border border-border text-muted-foreground",
+                    )}>
+                      {a.severity === "danger" && <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />}
+                      {a.severity === "warning" && <Bell className="h-3.5 w-3.5 shrink-0 mt-0.5" />}
+                      {a.severity === "info" && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" />}
+                      <span className="font-medium">{a.msg}</span>
+                    </div>
+                  );
+                  return (
+                    <li key={i}>
+                      {a.soId ? (
+                        <Link to="/sales-orders/$soId" params={{ soId: a.soId }} className="block">{inner}</Link>
+                      ) : a.toPO ? (
+                        <Link to="/purchase-orders" className="block">{inner}</Link>
+                      ) : (
+                        <div className="block">{inner}</div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </Card>
+      )}
+
+
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
@@ -214,79 +325,6 @@ function Dashboard() {
         )}
       </Card>
 
-      {/* Activity + Alerts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="p-4 md:p-5 lg:col-span-2">
-          <h2 className="font-semibold mb-4 flex items-center gap-2">
-            <Activity className="h-4 w-4" /> {t("dash_machine_activity")}
-          </h2>
-          {machines.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-muted-foreground border-b">
-                    <th className="pb-2">{t("machine")}</th>
-                    <th className="pb-2">{t("division")}</th>
-                    <th className="pb-2">{t("status")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {machines.map((m: any) => {
-                    const busy = shiftReports.find((r) => r.machine_id === m.id);
-                    return (
-                      <tr key={m.id} className="border-b last:border-0">
-                        <td className="py-2 font-medium">{m.name}</td>
-                        <td className="py-2 text-muted-foreground">
-                          {m.divisions?.name ?? "—"}
-                        </td>
-                        <td className="py-2">
-                          {busy ? (
-                            <span className="inline-flex items-center gap-1 text-success text-xs">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Aktif • {busy.operator_name}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-destructive text-xs">
-                              <XCircle className="h-3 w-3" /> Idle
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-4 md:p-5">
-          <h2 className="font-semibold mb-4 flex items-center gap-2">
-            <Bell className="h-4 w-4" /> {t("dash_alerts")}
-          </h2>
-          {alerts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("no_data")}</p>
-          ) : (
-            <ul className="space-y-2">
-              {alerts.map((a, i) => (
-                <li
-                  key={i}
-                  className={cn(
-                    "text-xs p-2 rounded border-l-2",
-                    a.severity === "danger" && "border-destructive bg-destructive/5",
-                    a.severity === "warning" && "border-warning bg-warning/5",
-                    a.severity === "info" && "border-info bg-info/5",
-                  )}
-                >
-                  {a.msg}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
     </div>
   );
 }

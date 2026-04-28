@@ -9,9 +9,9 @@ import {
   ClipboardCheck,
   Settings,
   LogOut,
-  Factory,
   Menu,
   X,
+  Calculator,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -20,16 +20,42 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+/** Logo mark — minimal geometric box icon matching project theme */
+function AppLogo({ size = 32 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-label="PPIC Logo"
+    >
+      {/* Background pill */}
+      <rect width="32" height="32" rx="8" className="fill-primary" />
+      {/* Box outline */}
+      <rect x="7" y="10" width="18" height="14" rx="1.5" stroke="white" strokeWidth="1.8" />
+      {/* Lid top flap */}
+      <path d="M7 14h18" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+      {/* Center crease */}
+      <path d="M16 10v4" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+      {/* Tracking dot */}
+      <circle cx="16" cy="20" r="1.8" fill="white" opacity="0.85" />
+    </svg>
+  );
+}
+
+
 type NavItem = { to: string; icon: typeof LayoutDashboard; key: string; roles?: string[] };
 
 const NAV: NavItem[] = [
   { to: "/", icon: LayoutDashboard, key: "nav_dashboard" },
   { to: "/sales-orders", icon: ShoppingCart, key: "nav_so", roles: ["ppic", "manager"] },
   { to: "/purchase-orders", icon: Package, key: "nav_po", roles: ["ppic", "manager"] },
-  { to: "/spk", icon: FileText, key: "nav_spk", roles: ["ppic", "manager"] },
   { to: "/workflow", icon: Workflow, key: "nav_workflow", roles: ["ppic", "manager"] },
   { to: "/tasks", icon: ClipboardList, key: "nav_tasks", roles: ["operator", "ppic"] },
   { to: "/shift-reports", icon: ClipboardCheck, key: "nav_shift", roles: ["operator", "ppic", "manager"] },
+  { to: "/kalkulator", icon: Calculator, key: "nav_kalkulator", roles: ["ppic", "operator", "manager"] },
   { to: "/settings", icon: Settings, key: "nav_settings", roles: ["ppic"] },
 ];
 
@@ -54,13 +80,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-60 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
         <div className="px-5 py-5 border-b border-sidebar-border">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-md bg-gradient-industrial flex items-center justify-center">
-              <Factory className="h-5 w-5 text-primary-foreground" />
-            </div>
+          <div className="flex items-center gap-2.5">
+            <AppLogo size={32} />
             <div className="leading-tight">
-              <div className="font-bold text-sm">{t("app_name")}</div>
-              <div className="text-[10px] text-sidebar-foreground/60">PPIC System</div>
+              <div className="font-bold text-sm tracking-tight">{t("app_name")}</div>
+              <div className="text-[10px] text-sidebar-foreground/50 tracking-widest uppercase">PPIC</div>
             </div>
           </div>
         </div>
@@ -112,10 +136,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <Menu className="h-5 w-5" />
             </button>
             <div className="md:hidden flex items-center gap-2">
-              <div className="h-7 w-7 rounded bg-gradient-industrial flex items-center justify-center">
-                <Factory className="h-4 w-4 text-primary-foreground" />
-              </div>
-              <span className="font-semibold text-sm">{t("app_name")}</span>
+              <AppLogo size={26} />
+              <span className="font-semibold text-sm tracking-tight">{t("app_name")}</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -158,7 +180,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <div className="absolute left-0 top-0 bottom-0 w-72 bg-sidebar text-sidebar-foreground p-4 flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <Factory className="h-5 w-5" />
+                  <AppLogo size={24} />
                   <span className="font-bold">{t("app_name")}</span>
                 </div>
                 <button onClick={() => setMobileOpen(false)} aria-label="Close menu">

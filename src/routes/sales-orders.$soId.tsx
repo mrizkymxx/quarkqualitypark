@@ -26,6 +26,8 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
+  Bell,
+  AlertTriangle,
 } from "lucide-react";
 import { RequireAuth } from "@/auth/RequireAuth";
 import { AppLayout } from "@/components/AppLayout";
@@ -105,7 +107,20 @@ function SODetail() {
     },
   });
 
-  const { data: dbStages = [] } = useQuery({
+  const { data: linkedPO } = useQuery({
+    queryKey: ["so-po", soId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("purchase_orders")
+        .select("*")
+        .eq("sales_order_id", soId)
+        .limit(1)
+        .maybeSingle();
+      return data ?? null;
+    },
+  });
+
+  const { data: dbStages } = useQuery({
     queryKey: ["stages", soId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -122,8 +137,10 @@ function SODetail() {
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    setStages(dbStages);
-    setDirty(false);
+    if (dbStages) {
+      setStages(dbStages);
+      setDirty(false);
+    }
   }, [dbStages]);
 
   const sensors = useSensors(
@@ -218,51 +235,135 @@ function SODetail() {
       <div className="text-sm text-muted-foreground">{t("loading")}</div>
     );
 
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Link to="/sales-orders" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <ArrowLeft className="h-4 w-4" />
-          {t("back")}
-        </Link>
-      </div>
+  // Parse P × L from linked PO notes
+  const pMatch = (linkedPO as any)?.notes?.match(/P:\s*([\d.]+)\s*mm/i);
+  const lMatch = (linkedPO as any)?.notes?.match(/L:\s*([\d.]+)\s*mm/i);
+  const pVal = pMatch?.[1];
+  const lVal = lMatch?.[1];
 
-      <Card className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-xs text-muted-foreground">{t("so_number")}</div>
-            <h1 className="text-2xl font-bold">{so.so_number}</h1>
-            <div className="text-sm text-muted-foreground mt-1">
-              {so.client_name} • {so.product_name}
-              {so.product_type && ` • ${so.product_type}`}
-            </div>
-            <div className="text-sm mt-2">
-              {t("quantity")}: <span className="font-medium">{so.quantity}</span>
-              {" • "}
-              {t("due_date")}: <span className="font-medium">{formatDate(so.due_date)}</span>
-            </div>
-            {so.notes && <p className="text-xs text-muted-foreground mt-2">{so.notes}</p>}
+  return (
+    <div className="space-y-4">
+      {/* Back */}
+      <Link to="/sales-orders" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" /> {t("back")}
+      </Link>
+
+      {/* ── Header Card ── */}
+      <Card className="p-4 space-y-3">
+        {/* Row 1: Nomor & status */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wide">No. SPK / SO</div>
+            <div className="text-xl font-black leading-tight">{so.so_number}</div>
+            <div className="text-sm text-muted-foreground mt-0.5">{so.client_name}</div>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-col items-end gap-2 shrink-0">
             <SOStatusBadge status={so.status} />
             {isPPIC && (
               <Select value={so.status} onValueChange={updateSOStatus}>
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="h-8 text-xs w-44">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {SO_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {t(`so_status_${s}`)}
-                    </SelectItem>
+                    <SelectItem key={s} value={s}>{t(`so_status_${s}`)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
           </div>
         </div>
+
+        {/* Deadline alert */}
+        {(() => {
+          if (!so.due_date || so.status === "selesai") return null;
+          const today = new Date(); today.setHours(0,0,0,0);
+          const due = new Date(so.due_date); due.setHours(0,0,0,0);
+          const diff = Math.round((due.getTime() - today.getTime()) / 86400000);
+          if (diff < 0) return (
+            <div className="flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 border border-destructive/40 text-xs font-semibold text-destructive">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              ⚠ {t("alert_so_late_label")} {Math.abs(diff)} {t("deadline_days_left")}!
+            </div>
+          );
+          if (diff <= 3) return (
+            <div className="flex items-center gap-2 p-2.5 rounded-md bg-warning/10 border border-warning/30 text-xs font-semibold text-warning-foreground">
+              <Bell className="h-4 w-4 shrink-0" />
+              🔔 {diff === 0 ? t("deadline_today") + "!" : `${diff} ${t("deadline_days_left")}!`}
+            </div>
+          );
+          return null;
+        })()}
+
+        {/* Row 2: P × L + info material */}
+        {(pVal || lVal) && (
+          <div className="flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-xl p-3">
+            <div className="flex items-center gap-2">
+              {pVal && (
+                <div className="text-center">
+                  <div className="text-[9px] text-muted-foreground font-semibold uppercase">P</div>
+                  <div className="text-2xl font-black text-primary tabular-nums leading-none">{pVal}</div>
+                  <div className="text-[9px] text-muted-foreground">mm</div>
+                </div>
+              )}
+              {pVal && lVal && <div className="text-xl text-muted-foreground">×</div>}
+              {lVal && (
+                <div className="text-center">
+                  <div className="text-[9px] text-muted-foreground font-semibold uppercase">L</div>
+                  <div className="text-2xl font-black text-primary tabular-nums leading-none">{lVal}</div>
+                  <div className="text-[9px] text-muted-foreground">mm</div>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium truncate">{(linkedPO as any)?.material_type}</div>
+              <div className="text-[11px] text-muted-foreground truncate">{(linkedPO as any)?.po_number}</div>
+              {(linkedPO as any)?.supplier_name && (
+                <div className="text-[11px] text-muted-foreground">{(linkedPO as any).supplier_name}</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Row 3: Produk */}
+        <div className="border-t pt-3">
+          <div className="font-semibold text-sm">{so.product_name}</div>
+          {so.product_type && (
+            <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{so.product_type}</div>
+          )}
+          {(so as any).customer_po_number && (
+            <div className="text-xs text-muted-foreground mt-1">
+              PO Klien: <span className="font-medium text-foreground">{(so as any).customer_po_number}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Row 4: Qty, Due date, Tgl SPK */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border-t pt-3">
+          <div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("quantity")}</div>
+            <div className="font-bold text-base tabular-nums">{so.quantity}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("due_date")}</div>
+            <div className="font-bold text-base">{formatDate(so.due_date)}</div>
+          </div>
+          {(so as any).schedule_date && (
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Tgl. SPK</div>
+              <div className="font-bold text-base">{formatDate((so as any).schedule_date)}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Notes */}
+        {so.notes && (
+          <p className="text-xs text-muted-foreground border-t pt-2 leading-relaxed">{so.notes}</p>
+        )}
+
+        {/* Konfirmasi klien */}
         {so.needs_client_confirmation && (
-          <div className="mt-3 p-2 rounded bg-warning/10 border border-warning/30 flex items-start gap-2 text-xs">
+          <div className="p-2 rounded bg-warning/10 border border-warning/30 flex items-start gap-2 text-xs">
             <AlertCircle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
             <div>
               <div className="font-medium text-warning-foreground">{t("needs_client_confirmation")}</div>
@@ -274,19 +375,18 @@ function SODetail() {
         )}
       </Card>
 
-      <Card className="p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+      {/* ── Workflow Stages Card ── */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-2 mb-3">
           <div>
-            <h2 className="font-semibold text-lg">{t("workflow_setup")}</h2>
-            <p className="text-xs text-muted-foreground">
-              {stages.length} {t("workflow_stages")}
-            </p>
+            <h2 className="font-semibold">{t("workflow_setup")}</h2>
+            <p className="text-xs text-muted-foreground">{stages.length} {t("workflow_stages")}</p>
           </div>
           {isPPIC && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2">
               <AddStageButton onAdd={addStage} />
               {dirty && (
-                <Button onClick={saveWorkflow} className="bg-accent text-accent-foreground">
+                <Button onClick={saveWorkflow} size="sm" className="bg-accent text-accent-foreground">
                   <Save className="h-4 w-4 mr-1" /> {t("save")}
                 </Button>
               )}
@@ -295,7 +395,7 @@ function SODetail() {
         </div>
 
         {stages.length === 0 ? (
-          <div className="text-center py-10 text-sm text-muted-foreground">
+          <div className="text-center py-8 text-sm text-muted-foreground">
             Belum ada tahap. {isPPIC ? "Tambah tahap untuk memulai." : ""}
           </div>
         ) : (
