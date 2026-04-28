@@ -83,10 +83,6 @@ function AuthPage() {
               {loading ? "..." : t("login")}
             </Button>
           </form>
-
-          <p className="mt-6 text-[11px] text-muted-foreground text-center">
-            Akun baru hanya dapat dibuat oleh PPIC (admin) di menu Pengaturan.
-          </p>
         </Card>
       </div>
     </div>
