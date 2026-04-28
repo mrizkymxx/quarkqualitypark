@@ -166,8 +166,8 @@ function CompletionBadge({ completion }: { completion: string }) {
   const { t } = useI18n();
   const map: Record<string, string> = {
     in_progress: "bg-info/15 text-info border-info/30",
-    done: "bg-success/15 text-success border-success/30",
-    blocked: "bg-warning/15 text-warning-foreground border-warning/40",
+    selesai_shift: "bg-success/15 text-success border-success/30",
+    tahap_selesai: "bg-primary/10 text-primary border-primary/30",
   };
   return (
     <Badge variant="outline" className={`${map[completion]} border`}>
